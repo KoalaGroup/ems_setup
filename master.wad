@@ -1,0 +1,32 @@
+set basedir   $setupdir/..
+set commondir $basedir/common
+set procdir   $basedir/procedures
+set daqdir    $basedir/daq
+
+# set the following values to '1' to enable a feature or to '0' to disable it
+set use_thresholds    1 ;# apply thresholds and enable zero suppression
+set use_em            0 ;# really, it is enable/disable event builder
+set write_file        1 ;# WRITE DATA to disk
+
+array set ISIDs {
+    scaler      1
+    mxdc32     10
+    timestamp 100
+}
+
+if {$use_em} {
+    set setupfile(em)      {em.wad}
+}
+# set setupfile(vme)     {vme_simple.wad}
+set setupfile(vme)     {vme.wad}
+
+set export_vars {basedir commondir procdir daqdir use_thresholds use_em write_file}
+
+set export_procs {get_arr}
+proc get_arr {arr} {
+  global $arr
+  # output "someone requests array $arr" tag_orange
+  # output_append "space=[ident]" tag_orange
+  # output_append "$arr: [array get $arr]" tag_orange
+  array get $arr
+}
