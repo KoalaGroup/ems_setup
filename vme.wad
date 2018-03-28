@@ -23,7 +23,7 @@ if {$use_em} {
 
 
 #comments out the next line if event online display doesn't work properly, then re-run the ems_control
- # set dataout(1) {cluster 1 0 socket localhost 12345}
+# set dataout(1) {cluster 1 0 socket localhost 12345}
 
 #set dataout(1) {cluster 1 0 socket localhost 4001}
 
@@ -41,7 +41,7 @@ array set ISIDs [mastersetup_get_arr ISIDs]
 # 0: no, readout clears event
 # 1: yes, unlimited transfer, no readout reset required (not for CBLT)
 # 3: yes, but the module transfers limited amount of data. The next data block can be transferred after readout reset
-set ro_type 1
+set ro_type 2
 set multievent 3
 
 set IDa_start 0x10

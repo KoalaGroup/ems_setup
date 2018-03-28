@@ -214,7 +214,7 @@ set readoutprio($ISidx.1) 100
 set readoutproc($ISidx.1) {}
 if {$ro_type==0} {       # simple
     # mxdc32_read_simple idx max_words
-    lappend readoutproc($ISidx.1) mxdc32_read_simple {-1 100}
+    lappend readoutproc($ISidx.1) mxdc32_read_simple {-1 8192}
 } elseif {$ro_type==1} { # multicast
     # mxdc32_read_mcst mcst_module  max_words
     lappend readoutproc($ISidx.1) mxdc32_read_mcst {1 1024}
