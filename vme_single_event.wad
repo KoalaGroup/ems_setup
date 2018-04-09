@@ -1,0 +1,263 @@
+####################################
+# ved name ved, isid 0x1
+####################################
+
+source /usr/local/ems/share/modultypes_arr.tcl
+
+set vedname ved
+set description {koala_test}
+
+####################################
+set triggermaster 1
+
+set systemTime [clock seconds]
+
+if {$use_em} {
+    set dataout(0) {cluster 1 0 socket anke02-a 9000}
+} else {
+    if {$write_file} {
+        #set dataout(0) {cluster 1 0 file /data/daq//%Y_%m_%d/Tuning_P_3.4_[clock format $systemTime -format %Y_%b_%d_%H_%M_%S].cl}
+        # set dataout(0) {cluster 1 0 file /data/daq//%Y_%m_%d/Cali_commonGain_source_%Y_%b_%d_%H_%M_%S.cl}
+        set dataout(0) {cluster 1 0 file /home/koala/workspace/data/test//%Y_%m_%d/debug_daq_%Y_%b_%d_%H_%M_%S.cl}
+    } else {
+        set dataout(0) {cluster 1 0 null}
+    }
+}
+
+
+#comments out the next line if event online display doesn't work properly, then re-run the ems_control
+# set dataout(1) {cluster 1 0 socket localhost 12345}
+
+#set dataout(1) {cluster 1 0 socket localhost 4001}
+
+####################################
+array set ISIDs [mastersetup_get_arr ISIDs]
+
+# ro_type:
+# 0 - simple readout: no multicast, no chained block readout, one module after another
+# 1 - multicast readout: write using MCST
+# 2 - chained block transfer (cblt): write with MCST, data readout with CBLT
+set ro_type 2
+
+# multievent (see addr 0x6036):
+# multivent defines the readout reset operations:
+# 0: no, single event mode, readout clears event and allow next gate coming in
+# 1: yes, unlimited transfer, no Berr generated, no readout reset required (not for CBLT)
+# 3: yes, but the module transfers limited amount of data specified by Max_transfer_data (0x601A). The next data block can be transferred after readout reset
+set multievent 0
+
+# IRQ return value
+set irq_vector 3
+# IRQ priority 1-7, 0 = off
+set irq_level 1
+# IRQ threshold
+# This register is meaningless in single event mode, thus any value is allowd, here 0 is chosen as the value
+set irq_threshold 0
+
+# Max tranfer data
+# This register is in active in single event mode, thus any value is allowed, here 0 is chose as the value
+set max_transfer_data 0
+
+# Max readout words
+set max_readout_words 35
+set max_readout_words_all 2000
+
+# MCST and CBLT address 
+set mcst_addr 0xBB000000
+set cblt_addr 0xAA000000
+
+# The start Module ID for different types of modules.
+# The id is increased according to the order added into the modullist
+set IDa_start 0x10
+set IDq_start 0x20
+set IDt_start 0x30
+
+set modullist {}
+#lappend modullist "vme $modtypearr(mesytec_mqdc32) 0x07000000 0"
+lappend modullist "vme $modtypearr(mesytec_mtdc32) 0x08000000 0"
+lappend modullist "vme $modtypearr(mesytec_madc32) 0x09000000 0"
+#lappend modullist "vme $modtypearr(SIS_3820) 0x38000000 0"
+#lappend modullist "vme $modtypearr(CAEN_V1495) 0x01230000 0"
+if {$ro_type>0} {
+    lappend modullist "vme $modtypearr(vme_mcst) $mcst_addr 0"
+}
+if {$ro_type>1} {
+    lappend modullist "vme $modtypearr(vme_cblt) $cblt_addr 0"
+}
+
+####################################
+# ClusterEvMax: max ems readout events allowed in one Cluster.
+# ClusterTimeMax: max elasped time allowed before forming one Cluster
+set init_proclist(0) {}
+lappend init_proclist(0) ClusterEvMax 10
+lappend init_proclist(0) ClusterTimeMax 1000
+
+# For the readout irq of ems?
+# vmeirq trigger_id module level vector
+set trigger "vmeirq 1 0 $irq_level $irq_vector"
+
+####################################
+# search_modlist searches in the modullist for a given modultype
+# the search starts a startidx
+proc search_modlist {modullist type startidx} {
+    set len [llength $modullist]
+    if {$startidx>=$len} {
+        return -1
+    }
+    for {set i $startidx} {$i<$len} {incr i} {
+        if {[lindex [lindex $modullist $i] 1]==$type} {
+            return $i
+        }
+    }
+    return -1
+}
+
+set ISidx 0
+
+# IS: MxDC32
+incr ISidx
+set isid($ISidx) $ISIDs(mxdc32)
+
+# memberlist of this IS
+set memberlist($ISidx) {}
+if {$ro_type>0} {
+    set idx [search_modlist $modullist $modtypearr(vme_mcst) 0]
+    if {$idx<0} {
+        output {cannot find a mcst module in the modullist} tag_red
+        FATAL_ERROR
+    }
+    lappend memberlist($ISidx) $idx
+}
+if {$ro_type>1} {
+    set idx [search_modlist $modullist $modtypearr(vme_cblt) 0]
+    if {$idx<0} {
+        output {cannot find a cblt module in the modullist} tag_red
+        FATAL_ERROR
+    }
+    lappend memberlist($ISidx) $idx
+}
+set idx [search_modlist $modullist $modtypearr(mesytec_madc32) 0]
+while {$idx>=0} {
+    lappend memberlist($ISidx) $idx
+    set idx [search_modlist $modullist $modtypearr(mesytec_madc32) [expr $idx+1]]
+}
+set idx [search_modlist $modullist $modtypearr(mesytec_mqdc32) 0]
+while {$idx>=0} {
+    lappend memberlist($ISidx) $idx
+    set idx [search_modlist $modullist $modtypearr(mesytec_mqdc32) [expr $idx+1]]
+}
+set idx [search_modlist $modullist $modtypearr(mesytec_mtdc32) 0]
+while {$idx>=0} {
+    lappend memberlist($ISidx) $idx
+    set idx [search_modlist $modullist $modtypearr(mesytec_mtdc32) [expr $idx+1]]
+}
+
+####################################
+# the precedure executed when INIT button is pressed
+set init_proclist($ISidx) {}
+
+# module specific initialization
+if {1} {
+# initialize all MADC32 modules
+  # madc32_init module_idx module_ID resolution input_range marking_type
+  #             sliding_scale_off bank_operation skip_oorange
+  lappend init_proclist($ISidx) madc32_init "-1 $IDa_start 4 2 1 1 0 0"
+}
+
+if {0} {
+# initialize all MQDC32 modules
+  # mqdc32_init module_idx module_ID marking_type sliding_scale bank_operation
+  #             skip_oorange
+  lappend init_proclist($ISidx) mqdc32_init "-1 $IDq_start 1 0 0 0"
+  lappend init_proclist($ISidx) mqdc32_gate_delay "-1 20"
+}
+
+if {1} {
+# initialize all MTDC32 modules
+  # mtdc32_init module_idx module_ID resolution negative_edge marking_type
+  #             output_format bank_operation first_hit_only
+  # lappend init_proclist($ISidx) mtdc32_reg "-1 0x6070 3"
+  lappend init_proclist($ISidx) mtdc32_init "-1 $IDt_start 6 1 1 0 0 0"
+  # mtdc32_trigger module_idx selection termination
+  lappend init_proclist($ISidx) mtdc32_trigger "-1 0 0"
+  # mtdc32_window module_idx bank start width source
+  lappend init_proclist($ISidx) mtdc32_window "-1 -1 16284 1500 1"
+}
+
+# setup IRQ level and vector
+# madc32_irq module_idx level vector irq_threshold
+lappend init_proclist($ISidx) mxdc32_irq "-1 $irq_level [expr -$irq_vector] $irq_threshold" 
+
+# setup MCST and CBLT chain
+if {$ro_type==1} {
+    # madc32_init_cblt mcst_module
+    # 1 is the index of vme_mcst in the memberlist, starting from 1
+    # Or the index can be from the modulelist, which starts from 0
+    lappend init_proclist($ISidx) mxdc32_init_cblt {1}
+} elseif {$ro_type==2} {
+    # madc32_init_cblt mcst_module cblt_module
+    # 2 is the index of vme_cblt in the memberlist, starting from 1
+    # Or the index can be from the modulelist, which starts from 0
+    lappend init_proclist($ISidx) mxdc32_init_cblt {1 2}
+}
+
+####################################
+# the procedure executed when START button is pressed
+set start_proclist($ISidx) {}
+if {$ro_type==0} {       # simple
+    # mxdc32_start_simple idx multievent max_transfer_data
+    lappend start_proclist($ISidx) mxdc32_start_simple "-1 $multievent $max_transfer_data"
+} elseif {$ro_type==1} { # multicast
+    # mxdc32_start_cblt mcst_module multievent max_transfer_data
+    lappend start_proclist($ISidx) mxdc32_start_cblt "1 $multievent $max_transfer_data"
+} elseif {$ro_type==2} { # cblt
+    # mxdc32_start_cblt mcst_module multievent max_transfer_data
+    lappend start_proclist($ISidx) mxdc32_start_cblt "1 $multievent $max_transfer_data"
+    # (Yes, start for multicast and cblt are identical)
+}
+
+
+####################################
+# procedure executed when readout IRQ is generated
+set readouttrigg($ISidx.1) "1"
+set readoutprio($ISidx.1) 100
+
+set readoutproc($ISidx.1) {}
+if {$ro_type==0} {       # simple
+    # mxdc32_read_simple idx max_words
+    # the max_words should be larger than the data length of a single event in each module
+    lappend readoutproc($ISidx.1) mxdc32_read_simple "-1 $max_readout_words"
+} elseif {$ro_type==1} { # multicast
+    # mxdc32_read_mcst mcst_module  max_words
+    # the max_words should be larger than the data length of a single event in each module
+    lappend readoutproc($ISidx.1) mxdc32_read_mcst "1 $max_readout_words"
+} elseif {$ro_type==2} { # cblt
+    # mxdc32_read_cblt mcst_module cblt_module max_words_all
+    # the max_words_all should be larger than the sum of the data length of a single event in all module
+    lappend readoutproc($ISidx.1) mxdc32_read_cblt "1 2 $max_readout_words_all"
+}
+
+####################################
+# procedure executed when STOP button is pressed
+set stop_proclist($ISidx) {}
+if {$ro_type==0} {       # simple
+    # mxdc32_stop_simple idx
+    lappend stop_proclist($ISidx) mxdc32_stop_simple {-1}
+} elseif {$ro_type==1} { # multicast
+    # mxdc32_stop_cblt mcst_module
+    lappend stop_proclist($ISidx) mxdc32_stop_cblt {1}
+} elseif {$ro_type==2} { # cblt
+    # mxdc32_stop_cblt mcst_module
+    lappend stop_proclist($ISidx) mxdc32_stop_cblt {1}
+    # (Yes, stop for multicast and cblt are identical)
+}
+# lappend stop_proclist($ISidx) mxdc32_statist {0}
+
+####################################
+#IS 100 // timestamp
+incr ISidx
+set isid($ISidx) $ISIDs(timestamp)
+set memberlist($ISidx) {}
+set readouttrigg($ISidx.1) {1}
+set readoutprio($ISidx.1) 100
+set readoutproc($ISidx.1) {Timestamp {1}}
