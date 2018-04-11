@@ -21,13 +21,18 @@ set multievent 3
 
 # create the module list (global for the ved)
 set modullist {}
-lappend modullist "vme $modtypearr(mesytec_madc32) 0x06000000 0"
+lappend modullist "vme $modtypearr(mesytec_madc32) 0x09000000 0"
 # lappend modullist "vme $modtypearr(mesytec_mqdc32) 0x07000000 0"
-lappend modullist "vme $modtypearr(mesytec_mtdc32) 0x08000000 0"
+lappend modullist "vme $modtypearr(mesytec_mtdc32) 0x0A000000 0"
 lappend modullist "vme $modtypearr(vme_mcst) $mcst_addr 0"
 lappend modullist "vme $modtypearr(vme_cblt) $cblt_addr 0"
 
 ved modullist create $modullist 
+
+# soft reset
+puts "Soft reset first\n"
+ved command1 madc32_init -1 0xFF 4 2 1 1 0 0
+ved command1 mtdc32_init -1 0xFF 6 1 1 0 0 0
 
 # setup the MCST/CBLT chain
 # mxdc32_init_cblt mcst_module cblt_module
